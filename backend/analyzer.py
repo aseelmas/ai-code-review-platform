@@ -163,6 +163,75 @@ def detect_code_issues(file_path: str) -> list[dict]:
                     ),
                 })
 
+        # Rule 5: subprocess with shell=True
+        if isinstance(node, ast.Call):
+            is_subprocess_call = False
+
+            # subprocess.run(...)
+            # subprocess.Popen(...)
+            # subprocess.call(...)
+            if isinstance(node.func, ast.Attribute):
+                if (
+                    isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "subprocess"
+                    and node.func.attr in {"run", "Popen", "call", "check_call", "check_output"}
+                ):
+                    is_subprocess_call = True
+
+            if is_subprocess_call:
+                for keyword in node.keywords:
+                    if (
+                        keyword.arg == "shell"
+                        and isinstance(keyword.value, ast.Constant)
+                        and keyword.value.value is True
+                    ):
+                        issues.append({
+                            "rule": "subprocess-shell-true",
+                            "severity": "high",
+                            "line": node.lineno,
+                            "message": (
+                                "subprocess is executed with shell=True. "
+                                "If command input is user-controlled, this may allow command injection."
+                            ),
+                        })
+
+        # Rule 6: possible hard-coded secret
+        if isinstance(node, ast.Assign):
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                value = node.value.value
+
+                sensitive_names = {
+                    "password",
+                    "passwd",
+                    "pwd",
+                    "api_key",
+                    "apikey",
+                    "secret",
+                    "secret_key",
+                    "token",
+                    "access_token",
+                    "auth_token",
+                }
+
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        variable_name = target.id.lower()
+
+                        if (
+                            variable_name in sensitive_names
+                            and len(value.strip()) >= 6
+                        ):
+                            issues.append({
+                                "rule": "hardcoded-secret",
+                                "severity": "high",
+                                "line": node.lineno,
+                                "message": (
+                                    f"Possible hard-coded secret in variable "
+                                    f"'{target.id}'. Store sensitive values in "
+                                    "environment variables or a secret manager."
+                                ),
+                            })
+
     # Add numeric score
     for issue in issues:
         issue["score"] = SEVERITY_SCORES[issue["severity"]]

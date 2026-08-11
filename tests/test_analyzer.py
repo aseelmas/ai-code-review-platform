@@ -127,3 +127,96 @@ result = calculate(2, 3)
     rules = [issue["rule"] for issue in issues]
 
     assert "dangerous-dynamic-execution" not in rules
+
+def test_detects_subprocess_shell_true():
+    code = """
+import subprocess
+
+command = input("Command: ")
+subprocess.run(command, shell=True)
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "subprocess-shell-true" in rules
+
+
+def test_detects_popen_shell_true():
+    code = """
+import subprocess
+
+command = "echo hello"
+subprocess.Popen(command, shell=True)
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "subprocess-shell-true" in rules
+
+
+def test_safe_subprocess_not_flagged():
+    code = """
+import subprocess
+
+subprocess.run(["git", "status"])
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "subprocess-shell-true" not in rules
+
+def test_detects_hardcoded_password():
+    code = """
+password = "super-secret-password"
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" in rules
+
+
+def test_detects_hardcoded_api_key():
+    code = """
+api_key = "example-api-key-value"
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" in rules
+
+
+def test_normal_string_is_not_flagged_as_secret():
+    code = """
+username = "aseel"
+project_name = "code-review-platform"
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" not in rules
+
+
+def test_environment_variable_secret_is_not_flagged():
+    code = """
+import os
+
+api_key = os.getenv("API_KEY")
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" not in rules
