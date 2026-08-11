@@ -31,7 +31,7 @@ except:
     assert "bare-except" in rules
 
 
-def test_detects_empty_except():
+def test_detects_silent_exception():
     code = """
 try:
     risky_operation()
@@ -43,7 +43,7 @@ except ValueError:
 
     rules = [issue["rule"] for issue in issues]
 
-    assert "empty-except" in rules
+    assert "silent-exception" in rules
 
 
 def test_detects_print_statement():
@@ -73,3 +73,18 @@ def divide(a, b):
     issues = analyze_code(code)
 
     assert issues == []
+
+def test_bare_except_with_pass_is_not_reported_twice():
+    code = """
+try:
+    risky_operation()
+except:
+    pass
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert rules.count("bare-except") == 1
+    assert "silent-exception" not in rules

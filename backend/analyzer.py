@@ -5,6 +5,13 @@ import subprocess
 import tempfile
 
 
+SEVERITY_SCORES = {
+    "high": 3,
+    "medium": 2,
+    "low": 1,
+}
+
+
 def clone_repository(repo_url: str) -> tuple[str, list[str]]:
     temp_dir = tempfile.mkdtemp()
 
@@ -31,6 +38,7 @@ def clone_repository(repo_url: str) -> tuple[str, list[str]]:
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise
 
+
 def analyze_python_file(file_path: str) -> dict:
     with open(file_path, "r", encoding="utf-8") as file:
         source_code = file.read()
@@ -41,14 +49,14 @@ def analyze_python_file(file_path: str) -> dict:
     classes = []
     imports = []
 
-    # Only inspect top-level elements of the file
+    # Inspect only top-level elements
     for node in tree.body:
 
         # Top-level function
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             functions.append({
                 "name": node.name,
-                "line": node.lineno
+                "line": node.lineno,
             })
 
         # Class
@@ -58,17 +66,17 @@ def analyze_python_file(file_path: str) -> dict:
             for class_node in node.body:
                 if isinstance(
                     class_node,
-                    (ast.FunctionDef, ast.AsyncFunctionDef)
+                    (ast.FunctionDef, ast.AsyncFunctionDef),
                 ):
                     methods.append({
                         "name": class_node.name,
-                        "line": class_node.lineno
+                        "line": class_node.lineno,
                     })
 
             classes.append({
                 "name": node.name,
                 "line": node.lineno,
-                "methods": methods
+                "methods": methods,
             })
 
         # import os
@@ -84,8 +92,9 @@ def analyze_python_file(file_path: str) -> dict:
     return {
         "functions": functions,
         "classes": classes,
-        "imports": imports
+        "imports": imports,
     }
+
 
 def detect_code_issues(file_path: str) -> list[dict]:
     with open(file_path, "r", encoding="utf-8") as file:
@@ -101,22 +110,28 @@ def detect_code_issues(file_path: str) -> list[dict]:
         if isinstance(node, ast.ExceptHandler) and node.type is None:
             issues.append({
                 "rule": "bare-except",
-                "severity": "medium",
+                "severity": "high",
                 "line": node.lineno,
-                "message": "Bare except catches every exception."
+                "message": (
+                    "Bare except catches all exceptions, including "
+                    "unexpected system-level exceptions."
+                ),
             })
 
-        # Rule 2: exception handler that only contains pass
-        if isinstance(node, ast.ExceptHandler):
+        # Rule 2: specific exception handler containing only pass
+        elif isinstance(node, ast.ExceptHandler):
             if (
                 len(node.body) == 1
                 and isinstance(node.body[0], ast.Pass)
             ):
                 issues.append({
-                    "rule": "empty-except",
-                    "severity": "high",
+                    "rule": "silent-exception",
+                    "severity": "medium",
                     "line": node.lineno,
-                    "message": "Exception is silently ignored."
+                    "message": (
+                        "Exception is silently ignored. "
+                        "Verify that this behavior is intentional."
+                    ),
                 })
 
         # Rule 3: print()
@@ -129,7 +144,17 @@ def detect_code_issues(file_path: str) -> list[dict]:
                     "rule": "print-statement",
                     "severity": "low",
                     "line": node.lineno,
-                    "message": "Consider using logging instead of print()."
+                    "message": "Consider using logging instead of print().",
                 })
+
+    # Add numeric score
+    for issue in issues:
+        issue["score"] = SEVERITY_SCORES[issue["severity"]]
+
+    # Highest priority issues first
+    issues.sort(
+        key=lambda issue: issue["score"],
+        reverse=True,
+    )
 
     return issues

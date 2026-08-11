@@ -33,7 +33,6 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
 
             try:
                 result = analyze_python_file(full_path)
-
                 issues = detect_code_issues(full_path)
 
                 analyzed_files.append({
@@ -47,10 +46,51 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
             except (SyntaxError, UnicodeDecodeError):
                 continue
 
+        total_issues = 0
+
+        severity_counts = {
+            "high": 0,
+            "medium": 0,
+            "low": 0,
+        }
+
+        all_issues = []
+
+        for file_result in analyzed_files:
+            for issue in file_result["issues"]:
+                total_issues += 1
+
+                severity = issue["severity"]
+
+                if severity in severity_counts:
+                    severity_counts[severity] += 1
+
+                all_issues.append({
+                    "file": file_result["file"],
+                    **issue,
+                })
+
+        # Sort all repository issues by risk score
+        all_issues.sort(
+            key=lambda issue: issue["score"],
+            reverse=True,
+        )
+
+        # Keep only the 10 highest-priority issues
+        top_issues = all_issues[:10]
+
         return {
             "repository": str(request.repo_url),
             "python_files_count": len(python_files),
             "analyzed_files_count": len(analyzed_files),
+
+            "summary": {
+                "total_issues": total_issues,
+                "severity_counts": severity_counts,
+            },
+
+            "top_issues": top_issues,
+
             "files": analyzed_files,
         }
 
