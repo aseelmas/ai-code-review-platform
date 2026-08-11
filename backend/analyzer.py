@@ -147,6 +147,22 @@ def detect_code_issues(file_path: str) -> list[dict]:
                     "message": "Consider using logging instead of print().",
                 })
 
+        # Rule 4: eval() / exec()
+        if isinstance(node, ast.Call):
+            if (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"eval", "exec"}
+            ):
+                issues.append({
+                    "rule": "dangerous-dynamic-execution",
+                    "severity": "high",
+                    "line": node.lineno,
+                    "message": (
+                        f"Use of {node.func.id}() can execute arbitrary Python code. "
+                        "Avoid using it with untrusted input."
+                    ),
+                })
+
     # Add numeric score
     for issue in issues:
         issue["score"] = SEVERITY_SCORES[issue["severity"]]

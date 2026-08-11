@@ -88,3 +88,42 @@ except:
 
     assert rules.count("bare-except") == 1
     assert "silent-exception" not in rules
+
+def test_detects_eval():
+    code = """
+user_input = input("Expression: ")
+result = eval(user_input)
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "dangerous-dynamic-execution" in rules
+
+
+def test_detects_exec():
+    code = """
+code = "print('hello')"
+exec(code)
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "dangerous-dynamic-execution" in rules
+
+def test_safe_function_call_not_flagged_as_dynamic_execution():
+    code = """
+def calculate(a, b):
+    return a + b
+
+result = calculate(2, 3)
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "dangerous-dynamic-execution" not in rules
