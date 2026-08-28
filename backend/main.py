@@ -107,7 +107,11 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
 
         top_issues = all_issues[:10]
 
-        health_score = calculate_health_score(all_issues)
+        health_score = (
+            calculate_health_score(all_issues)
+            if len(python_files) > 0
+            else None
+        )
 
         return {
             "repository": str(request.repo_url),

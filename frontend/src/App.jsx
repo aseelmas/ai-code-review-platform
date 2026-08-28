@@ -242,17 +242,25 @@ function App() {
 
             <div className="stats-grid">
               <div
-                className={`stat-card health-card ${getHealthClass(
-                  result.health_score
-                )}`}
+                className={`stat-card health-card ${
+                  result.health_score !== null
+                    ? getHealthClass(result.health_score)
+                    : ""
+                }`}
               >
                 <span className="stat-label">
                   Health Score
                 </span>
 
                 <div className="health-score">
-                  {result.health_score}
-                  <span>/100</span>
+                  {result.health_score !== null ? (
+                    <>
+                      {result.health_score}
+                      <span>/100</span>
+                    </>
+                  ) : (
+                    "N/A"
+                  )}
                 </div>
               </div>
 
@@ -405,8 +413,9 @@ function App() {
 
                   {filteredIssues.length === 0 ? (
                     <div className="no-issues">
-                      No issues match the selected
-                      filters.
+                      {result.python_files_count === 0.
+                         ? "No Python files found. This repository cannot currently be analyzed."
+                         : "No issues match the selected filters."}
                     </div>
                   ) : (
                     <div className="issues-list">
