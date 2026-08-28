@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import "./App.css";
 
 function App() {
@@ -6,6 +6,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [selectedFile, setSelectedFile] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
 
   const analyzeRepository = async () => {
     if (!repoUrl.trim()) {
@@ -16,6 +18,8 @@ function App() {
     setLoading(true);
     setError("");
     setResult(null);
+    setSelectedFile("all");
+    setSeverityFilter("all");
 
     try {
       const response = await fetch("http://127.0.0.1:8000/analyze", {
@@ -53,18 +57,49 @@ function App() {
     return "health-bad";
   };
 
+  const filesWithIssues = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    return result.files.filter((file) => file.issues.length > 0);
+  }, [result]);
+
+  const filteredIssues = useMemo(() => {
+    if (!result) {
+      return [];
+    }
+
+    let issues = result.files.flatMap((file) =>
+      file.issues.map((issue) => ({
+        ...issue,
+        file: file.file,
+      }))
+    );
+
+    if (selectedFile !== "all") {
+      issues = issues.filter((issue) => issue.file === selectedFile);
+    }
+
+    if (severityFilter !== "all") {
+      issues = issues.filter(
+        (issue) => issue.severity === severityFilter
+      );
+    }
+
+    return issues.sort((a, b) => b.score - a.score);
+  }, [result, selectedFile, severityFilter]);
+
   return (
     <div className="app">
       <div className="container">
         <header className="header">
-          <div>
-            <h1>AI Code Review Platform</h1>
+          <h1>AI Code Review Platform</h1>
 
-            <p className="subtitle">
-              Analyze Python GitHub repositories for code quality and security
-              issues.
-            </p>
-          </div>
+          <p className="subtitle">
+            Analyze Python GitHub repositories for code quality and security
+            issues.
+          </p>
         </header>
 
         <section className="analyze-section">
@@ -99,10 +134,8 @@ function App() {
         {result && (
           <main className="dashboard">
             <div className="repository-header">
-              <div>
-                <p className="section-label">ANALYSIS RESULT</p>
-                <h2>{result.repository}</h2>
-              </div>
+              <p className="section-label">ANALYSIS RESULT</p>
+              <h2>{result.repository}</h2>
             </div>
 
             <div className="stats-grid">
@@ -161,55 +194,130 @@ function App() {
               </div>
             </section>
 
-            <section className="issues-section">
-              <div className="issues-header">
+            <section className="explorer-section">
+              <div className="explorer-header">
                 <div>
-                  <p className="section-label">PRIORITY FINDINGS</p>
-                  <h2>Top Issues</h2>
+                  <p className="section-label">REPOSITORY EXPLORER</p>
+                  <h2>Files & Issues</h2>
                 </div>
 
                 <span className="issue-count">
-                  {result.top_issues.length} shown
+                  {filteredIssues.length} issues
                 </span>
               </div>
 
-              {result.top_issues.length === 0 ? (
-                <div className="no-issues">
-                  No issues detected in this repository.
-                </div>
-              ) : (
-                <div className="issues-list">
-                  {result.top_issues.map((issue, index) => (
-                    <article
-                      className="issue-card"
-                      key={`${issue.file}-${issue.line}-${index}`}
+              <div className="explorer-layout">
+                <aside className="file-panel">
+                  <button
+                    className={`file-item ${
+                      selectedFile === "all" ? "active-file" : ""
+                    }`}
+                    onClick={() => setSelectedFile("all")}
+                  >
+                    <span>All Files</span>
+                    <span>{result.summary.total_issues}</span>
+                  </button>
+
+                  {filesWithIssues.map((file) => (
+                    <button
+                      className={`file-item ${
+                        selectedFile === file.file ? "active-file" : ""
+                      }`}
+                      key={file.file}
+                      onClick={() => setSelectedFile(file.file)}
                     >
-                      <div className="issue-top">
-                        <span
-                          className={`severity-badge badge-${issue.severity}`}
-                        >
-                          {issue.severity}
-                        </span>
-
-                        <span className="rule-name">{issue.rule}</span>
-                      </div>
-
-                      <p className="issue-message">{issue.message}</p>
-
-                      <div className="issue-location">
-                        <span>{issue.file}</span>
-                        <span>Line {issue.line}</span>
-                      </div>
-
-                      {issue.code_context && (
-                        <pre className="code-context">
-                          <code>{issue.code_context}</code>
-                        </pre>
-                      )}
-                    </article>
+                      <span className="file-name">{file.file}</span>
+                      <span className="file-count">
+                        {file.issues.length}
+                      </span>
+                    </button>
                   ))}
+                </aside>
+
+                <div className="issues-panel">
+                  <div className="filter-row">
+                    <button
+                      className={`filter-button ${
+                        severityFilter === "all" ? "active-filter" : ""
+                      }`}
+                      onClick={() => setSeverityFilter("all")}
+                    >
+                      All
+                    </button>
+
+                    <button
+                      className={`filter-button ${
+                        severityFilter === "high" ? "active-filter" : ""
+                      }`}
+                      onClick={() => setSeverityFilter("high")}
+                    >
+                      High
+                    </button>
+
+                    <button
+                      className={`filter-button ${
+                        severityFilter === "medium"
+                          ? "active-filter"
+                          : ""
+                      }`}
+                      onClick={() => setSeverityFilter("medium")}
+                    >
+                      Medium
+                    </button>
+
+                    <button
+                      className={`filter-button ${
+                        severityFilter === "low" ? "active-filter" : ""
+                      }`}
+                      onClick={() => setSeverityFilter("low")}
+                    >
+                      Low
+                    </button>
+                  </div>
+
+                  {filteredIssues.length === 0 ? (
+                    <div className="no-issues">
+                      No issues match the selected filters.
+                    </div>
+                  ) : (
+                    <div className="issues-list">
+                      {filteredIssues.map((issue, index) => (
+                        <article
+                          className="issue-card"
+                          key={`${issue.file}-${issue.line}-${index}`}
+                        >
+                          <div className="issue-top">
+                            <span
+                              className={`severity-badge badge-${issue.severity}`}
+                            >
+                              {issue.severity}
+                            </span>
+
+                            <span className="rule-name">
+                              {issue.rule}
+                            </span>
+                          </div>
+
+                          <p className="issue-message">
+                            {issue.message}
+                          </p>
+
+                          <div className="issue-location">
+                            <span>{issue.file}</span>
+                            <span>Line {issue.line}</span>
+                          </div>
+
+                          {issue.code_context && (
+                            <pre className="code-context">
+                              <code>{issue.code_context}</code>
+                            </pre>
+                          )}
+                        </article>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </section>
           </main>
         )}
