@@ -530,4 +530,4 @@ Potential future improvements include:
 
 Computer Science Graduate from Ben-Gurion University of the Negev.
 
-Interested in software engineering, backend development, and AI-powered developer tools
+Interested in software engineering, backend development, and AI-powered developer tools.
