@@ -2,6 +2,8 @@ import os
 
 from fastapi import FastAPI, HTTPException
 
+from fastapi.middleware.cors import CORSMiddleware
+
 from backend.models import (
     AnalyzeRepositoryRequest,
     AIReviewRequest,
@@ -21,6 +23,17 @@ app = FastAPI(
     title="AI Code Review Platform",
     description="API for automated code analysis and AI-powered code review",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
