@@ -9,6 +9,10 @@ function App() {
   const [selectedFile, setSelectedFile] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
 
+  const [aiReviews, setAiReviews] = useState({});
+  const [aiLoading, setAiLoading] = useState({});
+  const [aiErrors, setAiErrors] = useState({});
+
   const analyzeRepository = async () => {
     if (!repoUrl.trim()) {
       setError("Please enter a GitHub repository URL.");
@@ -20,6 +24,10 @@ function App() {
     setResult(null);
     setSelectedFile("all");
     setSeverityFilter("all");
+
+    setAiReviews({});
+    setAiLoading({});
+    setAiErrors({});
 
     try {
       const response = await fetch("http://127.0.0.1:8000/analyze", {
@@ -57,6 +65,64 @@ function App() {
     return "health-bad";
   };
 
+  const getIssueId = (issue) => {
+    return `${issue.file}-${issue.line}-${issue.rule}`;
+  };
+
+  const requestAiReview = async (issue) => {
+    const issueId = getIssueId(issue);
+
+    setAiLoading((previous) => ({
+      ...previous,
+      [issueId]: true,
+    }));
+
+    setAiErrors((previous) => ({
+      ...previous,
+      [issueId]: "",
+    }));
+
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:8000/ai-review",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            rule: issue.rule,
+            severity: issue.severity,
+            line: issue.line,
+            message: issue.message,
+            code_context: issue.code_context || "",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("AI review failed.");
+      }
+
+      const data = await response.json();
+
+      setAiReviews((previous) => ({
+        ...previous,
+        [issueId]: data.ai_review,
+      }));
+    } catch (err) {
+      setAiErrors((previous) => ({
+        ...previous,
+        [issueId]: err.message,
+      }));
+    } finally {
+      setAiLoading((previous) => ({
+        ...previous,
+        [issueId]: false,
+      }));
+    }
+  };
+
   const filesWithIssues = useMemo(() => {
     if (!result) {
       return [];
@@ -78,7 +144,9 @@ function App() {
     );
 
     if (selectedFile !== "all") {
-      issues = issues.filter((issue) => issue.file === selectedFile);
+      issues = issues.filter(
+        (issue) => issue.file === selectedFile
+      );
     }
 
     if (severityFilter !== "all") {
@@ -116,8 +184,13 @@ function App() {
               }}
             />
 
-            <button onClick={analyzeRepository} disabled={loading}>
-              {loading ? "Analyzing..." : "Analyze Repository"}
+            <button
+              onClick={analyzeRepository}
+              disabled={loading}
+            >
+              {loading
+                ? "Analyzing..."
+                : "Analyze Repository"}
             </button>
           </div>
 
@@ -134,7 +207,10 @@ function App() {
         {result && (
           <main className="dashboard">
             <div className="repository-header">
-              <p className="section-label">ANALYSIS RESULT</p>
+              <p className="section-label">
+                ANALYSIS RESULT
+              </p>
+
               <h2>{result.repository}</h2>
             </div>
 
@@ -144,7 +220,9 @@ function App() {
                   result.health_score
                 )}`}
               >
-                <span className="stat-label">Health Score</span>
+                <span className="stat-label">
+                  Health Score
+                </span>
 
                 <div className="health-score">
                   {result.health_score}
@@ -153,14 +231,20 @@ function App() {
               </div>
 
               <div className="stat-card">
-                <span className="stat-label">Python Files</span>
+                <span className="stat-label">
+                  Python Files
+                </span>
+
                 <span className="stat-value">
                   {result.python_files_count}
                 </span>
               </div>
 
               <div className="stat-card">
-                <span className="stat-label">Total Issues</span>
+                <span className="stat-label">
+                  Total Issues
+                </span>
+
                 <span className="stat-value">
                   {result.summary.total_issues}
                 </span>
@@ -172,23 +256,41 @@ function App() {
 
               <div className="severity-grid">
                 <div className="severity-card severity-high">
-                  <span className="severity-name">High</span>
+                  <span className="severity-name">
+                    High
+                  </span>
+
                   <span className="severity-number">
-                    {result.summary.severity_counts.high}
+                    {
+                      result.summary.severity_counts
+                        .high
+                    }
                   </span>
                 </div>
 
                 <div className="severity-card severity-medium">
-                  <span className="severity-name">Medium</span>
+                  <span className="severity-name">
+                    Medium
+                  </span>
+
                   <span className="severity-number">
-                    {result.summary.severity_counts.medium}
+                    {
+                      result.summary.severity_counts
+                        .medium
+                    }
                   </span>
                 </div>
 
                 <div className="severity-card severity-low">
-                  <span className="severity-name">Low</span>
+                  <span className="severity-name">
+                    Low
+                  </span>
+
                   <span className="severity-number">
-                    {result.summary.severity_counts.low}
+                    {
+                      result.summary.severity_counts
+                        .low
+                    }
                   </span>
                 </div>
               </div>
@@ -197,7 +299,10 @@ function App() {
             <section className="explorer-section">
               <div className="explorer-header">
                 <div>
-                  <p className="section-label">REPOSITORY EXPLORER</p>
+                  <p className="section-label">
+                    REPOSITORY EXPLORER
+                  </p>
+
                   <h2>Files & Issues</h2>
                 </div>
 
@@ -210,23 +315,36 @@ function App() {
                 <aside className="file-panel">
                   <button
                     className={`file-item ${
-                      selectedFile === "all" ? "active-file" : ""
+                      selectedFile === "all"
+                        ? "active-file"
+                        : ""
                     }`}
-                    onClick={() => setSelectedFile("all")}
+                    onClick={() =>
+                      setSelectedFile("all")
+                    }
                   >
                     <span>All Files</span>
-                    <span>{result.summary.total_issues}</span>
+                    <span>
+                      {result.summary.total_issues}
+                    </span>
                   </button>
 
                   {filesWithIssues.map((file) => (
                     <button
                       className={`file-item ${
-                        selectedFile === file.file ? "active-file" : ""
+                        selectedFile === file.file
+                          ? "active-file"
+                          : ""
                       }`}
                       key={file.file}
-                      onClick={() => setSelectedFile(file.file)}
+                      onClick={() =>
+                        setSelectedFile(file.file)
+                      }
                     >
-                      <span className="file-name">{file.file}</span>
+                      <span className="file-name">
+                        {file.file}
+                      </span>
+
                       <span className="file-count">
                         {file.issues.length}
                       </span>
@@ -236,84 +354,191 @@ function App() {
 
                 <div className="issues-panel">
                   <div className="filter-row">
-                    <button
-                      className={`filter-button ${
-                        severityFilter === "all" ? "active-filter" : ""
-                      }`}
-                      onClick={() => setSeverityFilter("all")}
-                    >
-                      All
-                    </button>
-
-                    <button
-                      className={`filter-button ${
-                        severityFilter === "high" ? "active-filter" : ""
-                      }`}
-                      onClick={() => setSeverityFilter("high")}
-                    >
-                      High
-                    </button>
-
-                    <button
-                      className={`filter-button ${
-                        severityFilter === "medium"
-                          ? "active-filter"
-                          : ""
-                      }`}
-                      onClick={() => setSeverityFilter("medium")}
-                    >
-                      Medium
-                    </button>
-
-                    <button
-                      className={`filter-button ${
-                        severityFilter === "low" ? "active-filter" : ""
-                      }`}
-                      onClick={() => setSeverityFilter("low")}
-                    >
-                      Low
-                    </button>
+                    {[
+                      "all",
+                      "high",
+                      "medium",
+                      "low",
+                    ].map((filter) => (
+                      <button
+                        key={filter}
+                        className={`filter-button ${
+                          severityFilter === filter
+                            ? "active-filter"
+                            : ""
+                        }`}
+                        onClick={() =>
+                          setSeverityFilter(filter)
+                        }
+                      >
+                        {filter.charAt(0).toUpperCase() +
+                          filter.slice(1)}
+                      </button>
+                    ))}
                   </div>
 
                   {filteredIssues.length === 0 ? (
                     <div className="no-issues">
-                      No issues match the selected filters.
+                      No issues match the selected
+                      filters.
                     </div>
                   ) : (
                     <div className="issues-list">
-                      {filteredIssues.map((issue, index) => (
-                        <article
-                          className="issue-card"
-                          key={`${issue.file}-${issue.line}-${index}`}
-                        >
-                          <div className="issue-top">
-                            <span
-                              className={`severity-badge badge-${issue.severity}`}
+                      {filteredIssues.map(
+                        (issue, index) => {
+                          const issueId =
+                            getIssueId(issue);
+
+                          const aiReview =
+                            aiReviews[issueId];
+
+                          const isAiLoading =
+                            aiLoading[issueId];
+
+                          const aiError =
+                            aiErrors[issueId];
+
+                          return (
+                            <article
+                              className="issue-card"
+                              key={`${issue.file}-${issue.line}-${index}`}
                             >
-                              {issue.severity}
-                            </span>
+                              <div className="issue-top">
+                                <div className="issue-title">
+                                  <span
+                                    className={`severity-badge badge-${issue.severity}`}
+                                  >
+                                    {issue.severity}
+                                  </span>
 
-                            <span className="rule-name">
-                              {issue.rule}
-                            </span>
-                          </div>
+                                  <span className="rule-name">
+                                    {issue.rule}
+                                  </span>
+                                </div>
 
-                          <p className="issue-message">
-                            {issue.message}
-                          </p>
+                                <button
+                                  className="ai-review-button"
+                                  onClick={() =>
+                                    requestAiReview(
+                                      issue
+                                    )
+                                  }
+                                  disabled={
+                                    isAiLoading
+                                  }
+                                >
+                                  {isAiLoading
+                                    ? "Reviewing..."
+                                    : aiReview
+                                    ? "Review Again"
+                                    : "AI Review"}
+                                </button>
+                              </div>
 
-                          <div className="issue-location">
-                            <span>{issue.file}</span>
-                            <span>Line {issue.line}</span>
-                          </div>
+                              <p className="issue-message">
+                                {issue.message}
+                              </p>
 
-                          {issue.code_context && (
-                            <pre className="code-context">
-                              <code>{issue.code_context}</code>
-                            </pre>
-                          )}
-                        </article>
-                      ))}
+                              <div className="issue-location">
+                                <span>
+                                  {issue.file}
+                                </span>
+
+                                <span>
+                                  Line {issue.line}
+                                </span>
+                              </div>
+
+                              {issue.code_context && (
+                                <pre className="code-context">
+                                  <code>
+                                    {
+                                      issue.code_context
+                                    }
+                                  </code>
+                                </pre>
+                              )}
+
+                              {aiError && (
+                                <p className="ai-error">
+                                  {aiError}
+                                </p>
+                              )}
+
+                              {aiReview && (
+                                <div className="ai-review">
+                                  <div className="ai-review-header">
+                                    <div>
+                                      <p className="section-label">
+                                        AI CODE
+                                        REVIEW
+                                      </p>
+
+                                      <h3>
+                                        Review Result
+                                      </h3>
+                                    </div>
+                                  </div>
+
+                                  <div className="ai-review-grid">
+                                    <div className="ai-review-block">
+                                      <span className="ai-review-label">
+                                        Explanation
+                                      </span>
+
+                                      <p>
+                                        {
+                                          aiReview.explanation
+                                        }
+                                      </p>
+                                    </div>
+
+                                    <div className="ai-review-block">
+                                      <span className="ai-review-label">
+                                        Risk
+                                      </span>
+
+                                      <p>
+                                        {
+                                          aiReview.risk
+                                        }
+                                      </p>
+                                    </div>
+
+                                    <div className="ai-review-block">
+                                      <span className="ai-review-label">
+                                        Recommendation
+                                      </span>
+
+                                      <p>
+                                        {
+                                          aiReview.recommendation
+                                        }
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {aiReview.suggested_fix && (
+                                    <div className="suggested-fix">
+                                      <span className="ai-review-label">
+                                        Suggested Fix
+                                      </span>
+
+                                      <pre>
+                                        <code>
+                                          {
+                                            aiReview.suggested_fix
+                                          }
+                                        </code>
+                                      </pre>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </article>
+                          );
+                        }
+                      )}
                     </div>
                   )}
                 </div>
