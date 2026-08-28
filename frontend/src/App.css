@@ -1,22 +1,31 @@
 .app {
   min-height: 100vh;
-  padding: 60px 20px;
+  padding: 55px 24px 90px;
 }
 
 .container {
-  max-width: 900px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
-h1 {
-  font-size: 42px;
-  margin-bottom: 10px;
+.header {
+  margin-bottom: 35px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 44px;
+  letter-spacing: -1.5px;
 }
 
 .subtitle {
+  margin-top: 12px;
+  color: #667085;
   font-size: 18px;
-  margin-bottom: 35px;
-  color: #666;
+}
+
+.analyze-section {
+  margin-bottom: 40px;
 }
 
 .analyze-form {
@@ -26,33 +35,298 @@ h1 {
 
 .analyze-form input {
   flex: 1;
-  padding: 14px;
+  padding: 15px 17px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: white;
   font-size: 16px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  outline: none;
+}
+
+.analyze-form input:focus {
+  border-color: #667085;
 }
 
 .analyze-form button {
-  padding: 14px 22px;
+  padding: 15px 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
+  background: #111827;
+  color: white;
+  font-weight: 700;
   cursor: pointer;
-  font-weight: 600;
+  transition: 0.2s;
+}
+
+.analyze-form button:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 .analyze-form button:disabled {
-  cursor: not-allowed;
   opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .error {
-  margin-top: 20px;
-  color: red;
+  margin-top: 15px;
+  color: #b42318;
+  font-weight: 600;
 }
 
-.result {
-  margin-top: 40px;
-  padding: 25px;
-  border: 1px solid #ddd;
-  border-radius: 12px;
+.loading-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 35px;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  background: white;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e4e7ec;
+  border-top-color: #111827;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 35px;
+}
+
+.repository-header {
+  padding-bottom: 5px;
+}
+
+.repository-header h2 {
+  margin: 5px 0 0;
+  font-size: 20px;
+  word-break: break-word;
+}
+
+.section-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  color: #667085;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 16px;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 150px;
+  padding: 24px;
+  border: 1px solid #e4e7ec;
+  border-radius: 16px;
+  background: white;
+}
+
+.stat-label {
+  color: #667085;
+  font-weight: 600;
+}
+
+.stat-value {
+  margin-top: 22px;
+  font-size: 42px;
+  font-weight: 800;
+}
+
+.health-score {
+  margin-top: 20px;
+  font-size: 48px;
+  font-weight: 800;
+}
+
+.health-score span {
+  margin-left: 3px;
+  font-size: 18px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.health-good {
+  border-left: 5px solid #12b76a;
+}
+
+.health-medium {
+  border-left: 5px solid #f79009;
+}
+
+.health-bad {
+  border-left: 5px solid #f04438;
+}
+
+.severity-section h2,
+.issues-section h2 {
+  margin: 5px 0 18px;
+}
+
+.severity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.severity-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 24px;
+  border-radius: 14px;
+  background: white;
+  border: 1px solid #e4e7ec;
+}
+
+.severity-name {
+  font-weight: 700;
+}
+
+.severity-number {
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.severity-high {
+  border-left: 5px solid #f04438;
+}
+
+.severity-medium {
+  border-left: 5px solid #f79009;
+}
+
+.severity-low {
+  border-left: 5px solid #2e90fa;
+}
+
+.issues-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.issue-count {
+  color: #667085;
+  font-size: 14px;
+}
+
+.issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.issue-card {
+  padding: 22px;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  background: white;
+}
+
+.issue-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.severity-badge {
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.badge-high {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.badge-medium {
+  background: #fef0c7;
+  color: #b54708;
+}
+
+.badge-low {
+  background: #d1e9ff;
+  color: #175cd3;
+}
+
+.rule-name {
+  font-weight: 800;
+}
+
+.issue-message {
+  margin: 14px 0;
+  line-height: 1.6;
+  color: #475467;
+}
+
+.issue-location {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.code-context {
+  margin: 18px 0 0;
+  padding: 17px;
+  overflow-x: auto;
+  border-radius: 10px;
+  background: #101828;
+  color: #eaecf0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.no-issues {
+  padding: 30px;
+  text-align: center;
+  border: 1px solid #e4e7ec;
+  border-radius: 14px;
+  background: white;
+}
+
+@media (max-width: 750px) {
+  .app {
+    padding: 35px 16px;
+  }
+
+  .header h1 {
+    font-size: 34px;
+  }
+
+  .analyze-form {
+    flex-direction: column;
+  }
+
+  .stats-grid,
+  .severity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .issue-location {
+    flex-direction: column;
+  }
 }
