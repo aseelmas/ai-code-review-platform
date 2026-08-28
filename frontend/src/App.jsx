@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import "./App.css";
 
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+
 function App() {
   const [repoUrl, setRepoUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,7 +33,7 @@ function App() {
     setAiErrors({});
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/analyze", {
+      const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -41,7 +44,19 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Repository analysis failed.");
+        let message = "Repository analysis failed.";
+
+        try {
+          const errorData = await response.json();
+
+          if (errorData.detail) {
+            message = errorData.detail;
+          }
+        } catch {
+          // Keep the default error message.
+        }
+
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -83,9 +98,7 @@ function App() {
     }));
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:8000/ai-review",
-        {
+      const response = await fetch(`${API_URL}/ai-review`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -100,9 +113,22 @@ function App() {
         }
       );
 
+
       if (!response.ok) {
-        throw new Error("AI review failed.");
-      }
+        let message = "AI review failed.";
+
+        try {
+          const errorData = await response.json();
+
+          if (errorData.detail) {
+            message = errorData.detail;
+          }
+        } catch {
+          // Keep the default error message.
+        }
+
+        throw new Error(message);
+      }      
 
       const data = await response.json();
 

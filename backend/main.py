@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from fastapi import FastAPI, HTTPException
 
@@ -44,6 +45,8 @@ def home():
 
 @app.post("/analyze")
 def analyze_repository(request: AnalyzeRepositoryRequest):
+    repo_path = None
+
     try:
         repo_path, python_files = clone_repository(str(request.repo_url))
 
@@ -97,13 +100,11 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
                     **issue,
                 })
 
-        # Sort all repository issues by risk score
         all_issues.sort(
             key=lambda issue: issue["score"],
             reverse=True,
         )
 
-        # Keep only the 10 highest-priority issues
         top_issues = all_issues[:10]
 
         health_score = calculate_health_score(all_issues)
@@ -113,14 +114,11 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
             "python_files_count": len(python_files),
             "analyzed_files_count": len(analyzed_files),
             "health_score": health_score,
-
             "summary": {
                 "total_issues": total_issues,
                 "severity_counts": severity_counts,
             },
-
             "top_issues": top_issues,
-
             "files": analyzed_files,
         }
 
@@ -129,6 +127,10 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
             status_code=500,
             detail=f"Repository analysis failed: {str(e)}",
         )
+
+    finally:
+        if repo_path and os.path.exists(repo_path):
+            shutil.rmtree(repo_path, ignore_errors=True)
 
 
 @app.post("/ai-review")
