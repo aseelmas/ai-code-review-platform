@@ -2,7 +2,13 @@ import os
 
 from fastapi import FastAPI, HTTPException
 
-from backend.models import AnalyzeRepositoryRequest
+from backend.models import (
+    AnalyzeRepositoryRequest,
+    AIReviewRequest,
+)
+
+from backend.ai_reviewer import generate_ai_review
+
 from backend.analyzer import (
     clone_repository,
     analyze_python_file,
@@ -102,4 +108,28 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Repository analysis failed: {str(e)}",
+        )
+
+
+@app.post("/ai-review")
+def ai_review(request: AIReviewRequest):
+    try:
+        issue = {
+            "rule": request.rule,
+            "severity": request.severity,
+            "line": request.line,
+            "message": request.message,
+        }
+
+        review = generate_ai_review(issue)
+
+        return {
+            "issue": issue,
+            "ai_review": review,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"AI review failed: {str(e)}",
         )
