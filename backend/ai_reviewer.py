@@ -17,27 +17,36 @@ def generate_ai_review(issue: dict) -> dict:
     client = OpenAI(api_key=api_key)
 
     prompt = f"""
-You are a senior Python code reviewer.
+    You are a senior Python code reviewer.
 
-Analyze the following static-analysis finding.
+    Analyze the following static-analysis finding.
 
-Rule: {issue.get("rule")}
-Severity: {issue.get("severity")}
-Line: {issue.get("line")}
-Message: {issue.get("message")}
+    Rule: {issue.get("rule")}
+    Severity: {issue.get("severity")}
+    Line: {issue.get("line")}
+    Message: {issue.get("message")}
 
-Return ONLY valid JSON with exactly these fields:
+    Source code around the issue:
 
-{{
-  "explanation": "Short explanation of why the issue matters.",
-  "risk": "Short description of the risk.",
-  "recommendation": "Practical recommendation.",
-  "suggested_fix": "A short Python code example showing a safer alternative."
-}}
+    {issue.get("code_context", "No source context provided.")}
 
-Do not include markdown fences.
-Do not include text outside the JSON.
-"""
+    Return ONLY valid JSON with exactly these fields:
+
+    {{
+    "explanation": "Explain why this issue matters in the context of the provided code.",
+    "risk": "Describe the concrete risk created by this code.",
+    "recommendation": "Explain what the developer should change.",
+    "suggested_fix": "Provide a corrected Python code example based on the supplied source code."
+    }}
+
+    Important:
+    - Base your review on the supplied source code.
+    - Do not invent variables or behavior unless necessary.
+    - Preserve the intent of the original code when suggesting a fix.
+    - Keep the response concise.
+    - Do not include markdown fences.
+    - Do not include text outside the JSON.
+    """
 
     response = client.responses.create(
         model="gpt-5.4",

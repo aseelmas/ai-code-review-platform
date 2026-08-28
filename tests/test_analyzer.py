@@ -4,6 +4,7 @@ from pathlib import Path
 from backend.analyzer import (
     detect_code_issues,
     calculate_health_score,
+    get_code_context,
 )
 
 def analyze_code(code: str):
@@ -361,3 +362,65 @@ def test_health_score_never_below_zero():
     score = calculate_health_score(issues)
 
     assert score == 0
+
+
+def test_get_code_context_includes_issue_line():
+    code = """line_one = 1
+line_two = 2
+print("debug")
+line_four = 4
+line_five = 5
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = Path(temp_dir) / "context_test.py"
+        file_path.write_text(code, encoding="utf-8")
+
+        context = get_code_context(
+            str(file_path),
+            line_number=3,
+            context_lines=1,
+        )
+
+    assert '3: print("debug")' in context
+
+
+def test_get_code_context_includes_surrounding_lines():
+    code = """a = 1
+b = 2
+print("debug")
+c = 3
+d = 4
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = Path(temp_dir) / "context_test.py"
+        file_path.write_text(code, encoding="utf-8")
+
+        context = get_code_context(
+            str(file_path),
+            line_number=3,
+            context_lines=1,
+        )
+
+    assert "2: b = 2" in context
+    assert "4: c = 3" in context
+
+
+def test_get_code_context_handles_start_of_file():
+    code = """print("debug")
+x = 1
+y = 2
+"""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = Path(temp_dir) / "context_test.py"
+        file_path.write_text(code, encoding="utf-8")
+
+        context = get_code_context(
+            str(file_path),
+            line_number=1,
+            context_lines=3,
+        )
+
+    assert '1: print("debug")' in context

@@ -306,3 +306,30 @@ def calculate_health_score(issues: list[dict]) -> int:
             total_penalty += penalties[severity]
 
     return max(0, 100 - total_penalty)
+
+def get_code_context(
+    file_path: str,
+    line_number: int,
+    context_lines: int = 3,
+) -> str:
+    """
+    Return source code around a detected issue.
+
+    Example:
+    If the issue is on line 10 and context_lines=3,
+    return lines 7 through 13.
+    """
+    with open(file_path, "r", encoding="utf-8") as file:
+        lines = file.readlines()
+
+    start = max(0, line_number - context_lines - 1)
+    end = min(len(lines), line_number + context_lines)
+
+    context = []
+
+    for index in range(start, end):
+        context.append(
+            f"{index + 1}: {lines[index].rstrip()}"
+        )
+
+    return "\n".join(context)

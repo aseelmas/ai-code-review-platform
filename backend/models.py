@@ -10,3 +10,4 @@ class AIReviewRequest(BaseModel):
     severity: str
     line: int
     message: str
+    code_context: str = ""

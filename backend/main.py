@@ -14,6 +14,7 @@ from backend.analyzer import (
     analyze_python_file,
     detect_code_issues,
     calculate_health_score,
+    get_code_context,
 )
 
 app = FastAPI(
@@ -41,6 +42,12 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
             try:
                 result = analyze_python_file(full_path)
                 issues = detect_code_issues(full_path)
+
+                for issue in issues:
+                    issue["code_context"] = get_code_context(
+                        full_path,
+                        issue["line"],
+                    )
 
                 analyzed_files.append({
                     "file": relative_path,
@@ -119,6 +126,7 @@ def ai_review(request: AIReviewRequest):
             "severity": request.severity,
             "line": request.line,
             "message": request.message,
+            "code_context": request.code_context,
         }
 
         review = generate_ai_review(issue)
