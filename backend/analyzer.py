@@ -231,6 +231,43 @@ def detect_code_issues(file_path: str) -> list[dict]:
                                     "environment variables or a secret manager."
                                 ),
                             })
+        # Rule 7: annotated hard-coded secret
+        if isinstance(node, ast.AnnAssign):
+            if (
+                isinstance(node.target, ast.Name)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            ):
+                variable_name = node.target.id.lower()
+                value = node.value.value
+
+                sensitive_names = {
+                    "password",
+                    "passwd",
+                    "pwd",
+                    "api_key",
+                    "apikey",
+                    "secret",
+                    "secret_key",
+                    "token",
+                    "access_token",
+                    "auth_token",
+                }
+
+                if (
+                    variable_name in sensitive_names
+                    and len(value.strip()) >= 6
+                ):
+                    issues.append({
+                        "rule": "hardcoded-secret",
+                        "severity": "high",
+                        "line": node.lineno,
+                        "message": (
+                            f"Possible hard-coded secret in variable "
+                            f"'{node.target.id}'. Store sensitive values in "
+                            "environment variables or a secret manager."
+                        ),
+                    })
 
     # Add numeric score
     for issue in issues:

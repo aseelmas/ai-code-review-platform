@@ -220,3 +220,101 @@ api_key = os.getenv("API_KEY")
     rules = [issue["rule"] for issue in issues]
 
     assert "hardcoded-secret" not in rules
+
+def test_detects_annotated_hardcoded_secret():
+    code = """
+api_key: str = "my-secret-api-key"
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" in rules
+
+
+def test_hardcoded_secret_has_high_severity():
+    code = """
+password = "very-secret-password"
+"""
+
+    issues = analyze_code(code)
+
+    secret_issue = next(
+        issue for issue in issues
+        if issue["rule"] == "hardcoded-secret"
+    )
+
+    assert secret_issue["severity"] == "high"
+    assert secret_issue["score"] == 3
+
+
+def test_print_statement_has_low_score():
+    code = """
+print("debug")
+"""
+
+    issues = analyze_code(code)
+
+    print_issue = next(
+        issue for issue in issues
+        if issue["rule"] == "print-statement"
+    )
+
+    assert print_issue["severity"] == "low"
+    assert print_issue["score"] == 1
+
+
+def test_issue_line_number_is_correct():
+    code = """
+x = 10
+y = 20
+print("debug")
+"""
+
+    issues = analyze_code(code)
+
+    print_issue = next(
+        issue for issue in issues
+        if issue["rule"] == "print-statement"
+    )
+
+    assert print_issue["line"] == 4
+
+
+def test_password_text_inside_message_is_not_secret():
+    code = """
+message = "Please enter your password"
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" not in rules
+
+
+def test_short_secret_value_is_not_flagged():
+    code = """
+password = "123"
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "hardcoded-secret" not in rules
+
+
+def test_subprocess_without_shell_true_is_safe():
+    code = """
+import subprocess
+
+subprocess.run(["echo", "hello"], shell=False)
+"""
+
+    issues = analyze_code(code)
+
+    rules = [issue["rule"] for issue in issues]
+
+    assert "subprocess-shell-true" not in rules
