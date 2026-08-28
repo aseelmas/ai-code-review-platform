@@ -280,3 +280,29 @@ def detect_code_issues(file_path: str) -> list[dict]:
     )
 
     return issues
+
+
+def calculate_health_score(issues: list[dict]) -> int:
+    """
+    Calculate a repository health score from 0 to 100.
+
+    Each detected issue reduces the score according to severity:
+    - High:   -10
+    - Medium: -5
+    - Low:    -2
+    """
+    penalties = {
+        "high": 10,
+        "medium": 5,
+        "low": 2,
+    }
+
+    total_penalty = 0
+
+    for issue in issues:
+        severity = issue.get("severity")
+
+        if severity in penalties:
+            total_penalty += penalties[severity]
+
+    return max(0, 100 - total_penalty)

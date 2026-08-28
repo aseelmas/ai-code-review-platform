@@ -7,6 +7,7 @@ from backend.analyzer import (
     clone_repository,
     analyze_python_file,
     detect_code_issues,
+    calculate_health_score,
 )
 
 app = FastAPI(
@@ -79,10 +80,13 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
         # Keep only the 10 highest-priority issues
         top_issues = all_issues[:10]
 
+        health_score = calculate_health_score(all_issues)
+
         return {
             "repository": str(request.repo_url),
             "python_files_count": len(python_files),
             "analyzed_files_count": len(analyzed_files),
+            "health_score": health_score,
 
             "summary": {
                 "total_issues": total_issues,

@@ -1,8 +1,10 @@
 import tempfile
 from pathlib import Path
 
-from backend.analyzer import detect_code_issues
-
+from backend.analyzer import (
+    detect_code_issues,
+    calculate_health_score,
+)
 
 def analyze_code(code: str):
     """
@@ -318,3 +320,44 @@ subprocess.run(["echo", "hello"], shell=False)
     rules = [issue["rule"] for issue in issues]
 
     assert "subprocess-shell-true" not in rules
+
+
+def test_health_score_no_issues():
+    issues = []
+
+    score = calculate_health_score(issues)
+
+    assert score == 100
+
+
+def test_health_score_low_issue():
+    issues = [
+        {"severity": "low"}
+    ]
+
+    score = calculate_health_score(issues)
+
+    assert score == 98
+
+
+def test_health_score_mixed_issues():
+    issues = [
+        {"severity": "high"},
+        {"severity": "medium"},
+        {"severity": "low"},
+    ]
+
+    score = calculate_health_score(issues)
+
+    assert score == 83
+
+
+def test_health_score_never_below_zero():
+    issues = [
+        {"severity": "high"}
+        for _ in range(20)
+    ]
+
+    score = calculate_health_score(issues)
+
+    assert score == 0
