@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.models import (
     AnalyzeRepositoryRequest,
     AIReviewRequest,
+    AnalyzeDiffRequest,
 )
+from backend.diff_analyzer import analyze_diff
 
 from backend.ai_reviewer import generate_ai_review
 
@@ -160,3 +162,8 @@ def ai_review(request: AIReviewRequest):
             status_code=500,
             detail=f"AI review failed: {str(e)}",
         )
+
+
+@app.post("/analyze-diff")
+def review_code_diff(request: AnalyzeDiffRequest):
+    return analyze_diff(request.files)

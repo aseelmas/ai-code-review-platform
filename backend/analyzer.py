@@ -100,6 +100,11 @@ def detect_code_issues(file_path: str) -> list[dict]:
     with open(file_path, "r", encoding="utf-8") as file:
         source_code = file.read()
 
+    return detect_source_issues(source_code)
+
+
+def detect_source_issues(source_code: str) -> list[dict]:
+    """Analyze complete Python source without writing or executing it."""
     tree = ast.parse(source_code)
 
     issues = []
@@ -320,7 +325,18 @@ def get_code_context(
     return lines 7 through 13.
     """
     with open(file_path, "r", encoding="utf-8") as file:
-        lines = file.readlines()
+        source_code = file.read()
+
+    return get_source_context(source_code, line_number, context_lines)
+
+
+def get_source_context(
+    source_code: str,
+    line_number: int,
+    context_lines: int = 3,
+) -> str:
+    """Return numbered context from in-memory source."""
+    lines = source_code.splitlines()
 
     start = max(0, line_number - context_lines - 1)
     end = min(len(lines), line_number + context_lines)

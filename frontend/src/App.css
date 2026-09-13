@@ -28,6 +28,52 @@
   margin-bottom: 40px;
 }
 
+.diff-inputs {
+  margin-bottom: 18px;
+}
+
+.diff-inputs p,
+.diff-results {
+  color: #475467;
+  line-height: 1.6;
+}
+
+.diff-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.diff-inputs input,
+.diff-inputs textarea {
+  padding: 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 10px;
+  background: white;
+  font: inherit;
+}
+
+.diff-editors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.diff-editors textarea {
+  min-height: 260px;
+  resize: vertical;
+  font-family: monospace;
+  font-weight: normal;
+}
+
+@media (max-width: 750px) {
+  .diff-editors {
+    grid-template-columns: 1fr;
+  }
+}
+
 .analyze-form {
   display: flex;
   gap: 12px;

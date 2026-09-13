@@ -64,6 +64,35 @@ Each detected issue includes:
 - Description
 - Relevant source-code context
 
+### Code Diff Review
+
+Select **Code Diff Review** in the dashboard, enter a Python filename, and paste
+the complete **Before** and **After** source. Click **Review Code Diff** to inspect
+findings with the same severity filters, source context, and optional AI reviews.
+The UI reviews one file at a time; the API accepts up to 20 files.
+
+- An empty Before represents a new file; an empty After represents a deletion.
+- Added and replaced lines use one-based line numbers in the updated file.
+- Unchanged findings are excluded, including when insertions shift their lines.
+- Deleted lines, unchanged files, and non-Python files are skipped with a reason.
+- Invalid updated Python is reported per file; other files can still be reviewed.
+- The changed-code score uses the existing penalties on the filtered findings.
+  It is `null` if nothing was analyzed or any Python file failed to parse.
+
+**Scope:** this is a line-scoped review, not a comparison of before/after findings.
+A finding is included only when its AST start line was added or replaced. Editing
+an existing problematic line can report it again. Changes later in a multiline
+call, or inside an exception handler whose header is unchanged, can be missed.
+Moved code can be reported as added. Line-ending and final-newline-only changes
+are ignored. No claims are made about resolved issues or whole-repository health.
+
+The implementation uses `difflib.SequenceMatcher` to identify changed lines,
+parses the complete updated source through the existing AST rules, then filters
+the findings. Source stays in memory and is never executed or written to a path
+supplied by the client. Static review needs neither GitHub access nor an AI key.
+Future GitHub PR integration can fetch base/head file contents and pass them to
+this same service; authentication, patch ingestion, and PR comments are deferred.
+
 ### Repository Health Score
 
 The platform calculates a repository health score from **0 to 100** based on detected issues and their severity.
@@ -182,6 +211,7 @@ ai-code-review-platform/
 │   ├── __init__.py
 │   ├── ai_reviewer.py
 │   ├── analyzer.py
+│   ├── diff_analyzer.py
 │   ├── main.py
 │   └── models.py
 │
@@ -198,6 +228,8 @@ ai-code-review-platform/
 │   └── vite.config.js
 │
 ├── tests/
+│   ├── test_api.py
+│   ├── test_diff_analyzer.py
 │   └── test_analyzer.py
 │
 ├── screenshots/
@@ -287,6 +319,41 @@ Example response structure:
 ```
 
 ---
+
+### Analyze Code Diff
+
+```http
+POST /analyze-diff
+```
+
+Example request:
+
+```json
+{
+  "files": [
+    {
+      "file": "app.py",
+      "before": "x = 1\n",
+      "after": "x = 1\nprint(x)\n"
+    }
+  ]
+}
+```
+
+The response includes `analysis_type: "diff"`, `python_files_count`,
+`analyzed_files_count`, `health_score`, `summary`, `top_issues`, and `files`.
+Each file contains `file`, `changed_lines`, `issues`, and a `status` of
+`analyzed`, `skipped`, or `error`; skipped/error files include a `reason`.
+In this example, `changed_lines` is `[2]`, the print finding is at line 2,
+and the changed-code score is 98.
+
+Both source strings are required, but may be empty. Limits: 20 files,
+100,000 characters per source snapshot, and 500 characters per filename.
+Blank or duplicate filenames and invalid payloads return HTTP 422.
+Per-file syntax errors return HTTP 200 with an explicit error status so that
+valid files in the same request still produce results. Filenames are labels,
+not server filesystem paths. Full snapshots are required; unified patches and
+GitHub PR URLs are not accepted by this endpoint yet.
 
 ### AI Review
 
@@ -449,6 +516,10 @@ The automated tests cover:
 - Dangerous subprocess detection
 - Repository health-score calculation
 - Source-code context extraction
+- Diff line mapping, additions, replacements, deletions, and repeated lines
+- Exclusion of unchanged findings and explicit issue-start-line scope
+- Per-file errors, request validation, and multi-file diff results
+- Repository API regression checks and compatibility with AI review (mocked)
 
 Frontend validation:
 

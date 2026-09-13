@@ -6,6 +6,10 @@ const API_URL =
 
 function App() {
   const [repoUrl, setRepoUrl] = useState("");
+  const [mode, setMode] = useState("repository");
+  const [diffFile, setDiffFile] = useState("example.py");
+  const [before, setBefore] = useState("");
+  const [after, setAfter] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -16,9 +20,14 @@ function App() {
   const [aiLoading, setAiLoading] = useState({});
   const [aiErrors, setAiErrors] = useState({});
 
-  const analyzeRepository = async () => {
-    if (!repoUrl.trim()) {
+  const runAnalysis = async () => {
+    if (loading) return;
+    if (mode === "repository" && !repoUrl.trim()) {
       setError("Please enter a GitHub repository URL.");
+      return;
+    }
+    if (mode === "diff" && !diffFile.trim()) {
+      setError("Please enter a file name.");
       return;
     }
 
@@ -33,24 +42,26 @@ function App() {
     setAiErrors({});
 
     try {
-      const response = await fetch(`${API_URL}/analyze`, {
+      const response = await fetch(`${API_URL}/${mode === "diff" ? "analyze-diff" : "analyze"}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          repo_url: repoUrl,
-        }),
+        body: JSON.stringify(mode === "diff"
+          ? { files: [{ file: diffFile, before, after }] }
+          : { repo_url: repoUrl }),
       });
 
       if (!response.ok) {
-        let message = "Repository analysis failed.";
+        let message = "Analysis failed.";
 
         try {
           const errorData = await response.json();
 
           if (errorData.detail) {
-            message = errorData.detail;
+            message = Array.isArray(errorData.detail)
+              ? errorData.detail.map((item) => item.msg).join("; ")
+              : errorData.detail;
           }
         } catch {
           // Keep the default error message.
@@ -197,26 +208,63 @@ function App() {
         </header>
 
         <section className="analyze-section">
+          <div className="filter-row" aria-label="Analysis mode">
+            {["repository", "diff"].map((value) => (
+              <button
+                key={value}
+                className={`filter-button ${mode === value ? "active-filter" : ""}`}
+                aria-pressed={mode === value}
+                disabled={loading}
+                onClick={() => {
+                  setMode(value);
+                  setResult(null);
+                  setError("");
+                }}
+              >
+                {value === "diff" ? "Code Diff Review" : "Repository Analysis"}
+              </button>
+            ))}
+          </div>
+          {mode === "diff" && (
+            <div className="diff-inputs">
+              <p>Paste complete before and after Python source. Leave Before empty for a new file or After empty for a deletion. Findings are limited to added or replaced issue-start lines.</p>
+              <label>
+                File name
+                <input value={diffFile} maxLength={500} disabled={loading}
+                  onChange={(event) => setDiffFile(event.target.value)} />
+              </label>
+              <div className="diff-editors">
+                <label>Before
+                  <textarea value={before} maxLength={100000} disabled={loading} spellCheck={false}
+                    onChange={(event) => setBefore(event.target.value)} />
+                </label>
+                <label>After
+                  <textarea value={after} maxLength={100000} disabled={loading} spellCheck={false}
+                    onChange={(event) => setAfter(event.target.value)} />
+                </label>
+              </div>
+            </div>
+          )}
           <div className="analyze-form">
-            <input
+            {mode === "repository" && <input
               type="text"
               placeholder="https://github.com/owner/repository"
               value={repoUrl}
               onChange={(event) => setRepoUrl(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
-                  analyzeRepository();
+                  runAnalysis();
                 }
               }}
-            />
+            />}
 
             <button
-              onClick={analyzeRepository}
+              onClick={runAnalysis}
               disabled={loading}
             >
               {loading
                 ? "Analyzing..."
-                : "Analyze Repository"}
+                : mode === "diff" ? "Review Code Diff" : "Analyze Repository"}
             </button>
           </div>
 
@@ -226,7 +274,7 @@ function App() {
         {loading && (
           <div className="loading-card">
             <div className="spinner"></div>
-            <p>Analyzing repository...</p>
+            <p>{mode === "diff" ? "Reviewing code changes..." : "Analyzing repository..."}</p>
           </div>
         )}
 
@@ -237,7 +285,17 @@ function App() {
                 ANALYSIS RESULT
               </p>
 
-              <h2>{result.repository}</h2>
+              <h2>{result.analysis_type === "diff" ? "Code Diff Review" : result.repository}</h2>
+              {result.analysis_type === "diff" && (
+                <div className="diff-results">
+                  <p>The score covers findings on changed issue-start lines only. It is not a repository health score.</p>
+                  {result.files.map((file) => (
+                    <p key={file.file} className={file.status === "error" ? "error" : ""}>
+                      <strong>{file.file}</strong>: {file.status} — {file.reason || `${file.changed_lines.length} added or replaced lines reviewed.`}
+                    </p>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="stats-grid">
@@ -249,7 +307,7 @@ function App() {
                 }`}
               >
                 <span className="stat-label">
-                  Health Score
+                  {result.analysis_type === "diff" ? "Changed Code Score" : "Health Score"}
                 </span>
 
                 <div className="health-score">
@@ -334,7 +392,7 @@ function App() {
               <div className="explorer-header">
                 <div>
                   <p className="section-label">
-                    REPOSITORY EXPLORER
+                    {result.analysis_type === "diff" ? "DIFF EXPLORER" : "REPOSITORY EXPLORER"}
                   </p>
 
                   <h2>Files & Issues</h2>
@@ -413,7 +471,9 @@ function App() {
 
                   {filteredIssues.length === 0 ? (
                     <div className="no-issues">
-                      {result.python_files_count === 0.
+                      {result.analysis_type === "diff"
+                         ? "No findings match the selected filters. Check file review status above for skipped files or errors."
+                         : result.python_files_count === 0
                          ? "No Python files found. This repository cannot currently be analyzed."
                          : "No issues match the selected filters."}
                     </div>
