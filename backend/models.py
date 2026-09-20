@@ -1,16 +1,26 @@
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
+
+from backend.repository import validate_repository_url
 
 
 class AnalyzeRepositoryRequest(BaseModel):
-    repo_url: HttpUrl
+    repo_url: str = Field(min_length=1, max_length=300)
+    include_ai_review: bool = False
+
+    @field_validator("repo_url")
+    @classmethod
+    def github_repository(cls, value: str) -> str:
+        return validate_repository_url(value)
 
 
 class AIReviewRequest(BaseModel):
-    rule: str
-    severity: str
-    line: int
-    message: str
-    code_context: str = ""
+    rule: str = Field(min_length=1, max_length=100)
+    severity: Literal["high", "medium", "low"]
+    line: int = Field(ge=1)
+    message: str = Field(min_length=1, max_length=2000)
+    code_context: str = Field(default="", max_length=12000)
 
 
 class DiffFile(BaseModel):

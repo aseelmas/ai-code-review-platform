@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { postJson } from "./api";
 import "./App.css";
 
 const API_URL =
@@ -15,6 +16,8 @@ function App() {
   const [error, setError] = useState("");
   const [selectedFile, setSelectedFile] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
+  const [includeAiReview, setIncludeAiReview] = useState(false);
+  const analysisVersion = useRef(0);
 
   const [aiReviews, setAiReviews] = useState({});
   const [aiLoading, setAiLoading] = useState({});
@@ -31,6 +34,7 @@ function App() {
       return;
     }
 
+    analysisVersion.current += 1;
     setLoading(true);
     setError("");
     setResult(null);
@@ -42,36 +46,18 @@ function App() {
     setAiErrors({});
 
     try {
-      const response = await fetch(`${API_URL}/${mode === "diff" ? "analyze-diff" : "analyze"}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(mode === "diff"
+      const data = await postJson(
+        `${API_URL}/${mode === "diff" ? "analyze-diff" : "analyze"}`,
+        mode === "diff"
           ? { files: [{ file: diffFile, before, after }] }
-          : { repo_url: repoUrl }),
-      });
-
-      if (!response.ok) {
-        let message = "Analysis failed.";
-
-        try {
-          const errorData = await response.json();
-
-          if (errorData.detail) {
-            message = Array.isArray(errorData.detail)
-              ? errorData.detail.map((item) => item.msg).join("; ")
-              : errorData.detail;
-          }
-        } catch {
-          // Keep the default error message.
-        }
-
-        throw new Error(message);
-      }
-
-      const data = await response.json();
+          : { repo_url: repoUrl.trim(), include_ai_review: includeAiReview },
+      );
       setResult(data);
+      const findings = data.files.flatMap((file) => file.issues.map((issue) => ({ ...issue, file: file.file })));
+      setAiReviews(Object.fromEntries(findings.filter((issue) => issue.ai_review)
+        .map((issue) => [getIssueId(issue), issue.ai_review])));
+      setAiErrors(Object.fromEntries(findings.filter((issue) => issue.ai_error)
+        .map((issue) => [getIssueId(issue), issue.ai_error])));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -97,6 +83,7 @@ function App() {
 
   const requestAiReview = async (issue) => {
     const issueId = getIssueId(issue);
+    const version = analysisVersion.current;
 
     setAiLoading((previous) => ({
       ...previous,
@@ -109,54 +96,29 @@ function App() {
     }));
 
     try {
-      const response = await fetch(`${API_URL}/ai-review`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
+      const data = await postJson(`${API_URL}/ai-review`, {
             rule: issue.rule,
             severity: issue.severity,
             line: issue.line,
             message: issue.message,
-            code_context: issue.code_context || "",
-          }),
-        }
+            code_context: (issue.code_context || "").slice(0, 12000),
+          }, 30000,
       );
-
-
-      if (!response.ok) {
-        let message = "AI review failed.";
-
-        try {
-          const errorData = await response.json();
-
-          if (errorData.detail) {
-            message = errorData.detail;
-          }
-        } catch {
-          // Keep the default error message.
-        }
-
-        throw new Error(message);
-      }      
-
-      const data = await response.json();
-
+      if (version !== analysisVersion.current) return;
       setAiReviews((previous) => ({
         ...previous,
         [issueId]: data.ai_review,
       }));
     } catch (err) {
+      if (version !== analysisVersion.current) return;
       setAiErrors((previous) => ({
         ...previous,
         [issueId]: err.message,
       }));
     } finally {
-      setAiLoading((previous) => ({
-        ...previous,
-        [issueId]: false,
-      }));
+      if (version === analysisVersion.current) {
+        setAiLoading((previous) => ({ ...previous, [issueId]: false }));
+      }
     }
   };
 
@@ -216,6 +178,7 @@ function App() {
                 aria-pressed={mode === value}
                 disabled={loading}
                 onClick={() => {
+                  analysisVersion.current += 1;
                   setMode(value);
                   setResult(null);
                   setError("");
@@ -248,6 +211,8 @@ function App() {
           <div className="analyze-form">
             {mode === "repository" && <input
               type="text"
+              aria-label="GitHub repository URL"
+              disabled={loading}
               placeholder="https://github.com/owner/repository"
               value={repoUrl}
               onChange={(event) => setRepoUrl(event.target.value)}
@@ -268,13 +233,24 @@ function App() {
             </button>
           </div>
 
-          {error && <p className="error">{error}</p>}
+          {mode === "repository" && (
+            <label className="ai-option">
+              <input type="checkbox" checked={includeAiReview} disabled={loading}
+                onChange={(event) => setIncludeAiReview(event.target.checked)} />
+              <span>Include AI review for up to 3 high/medium issues.
+                <small>Sends source context to OpenAI and may incur API charges. Static analysis always runs.</small>
+              </span>
+            </label>
+          )}
+          {error && <p className="error" role="alert">{error}</p>}
         </section>
 
         {loading && (
-          <div className="loading-card">
+          <div className="loading-card" role="status" aria-live="polite">
             <div className="spinner"></div>
-            <p>{mode === "diff" ? "Reviewing code changes..." : "Analyzing repository..."}</p>
+            <p>{mode === "diff" ? "Reviewing code changes..." : includeAiReview
+              ? "Analyzing repository and reviewing important findings with AI..."
+              : "Analyzing repository..."}</p>
           </div>
         )}
 
@@ -286,6 +262,7 @@ function App() {
               </p>
 
               <h2>{result.analysis_type === "diff" ? "Code Diff Review" : result.repository}</h2>
+              <p className="analysis-caption">{result.analyzed_files_count} of {result.python_files_count} Python files analyzed</p>
               {result.analysis_type === "diff" && (
                 <div className="diff-results">
                   <p>The score covers findings on changed issue-start lines only. It is not a repository health score.</p>
@@ -298,6 +275,17 @@ function App() {
               )}
             </div>
 
+            {result.warnings?.length > 0 && (
+              <aside className="analysis-notice" role="status">
+                {result.warnings.map((warning) => <p key={warning}>{warning}</p>)}
+                {result.skipped_files?.length > 0 && (
+                  <details><summary>Files not analyzed</summary>
+                    <ul>{result.skipped_files.map((file) => <li key={file.file}>{file.file}: {file.reason}</li>)}</ul>
+                  </details>
+                )}
+              </aside>
+            )}
+
             <div className="stats-grid">
               <div
                 className={`stat-card health-card ${
@@ -307,7 +295,7 @@ function App() {
                 }`}
               >
                 <span className="stat-label">
-                  {result.analysis_type === "diff" ? "Changed Code Score" : "Health Score"}
+                  {result.analysis_type === "diff" ? "Changed Code Score" : "Repository Health Score"}
                 </span>
 
                 <div className="health-score">
@@ -388,7 +376,32 @@ function App() {
               </div>
             </section>
 
-            <section className="explorer-section">
+            {result.top_issues?.length > 0 && (
+              <section className="top-issues" aria-labelledby="top-issues-title">
+                <p className="section-label">REVIEW PRIORITIES</p>
+                <h2 id="top-issues-title">Top issues</h2>
+                <p>Up to 10 findings, ordered by severity. Select one to inspect its file and request an AI review.</p>
+                <ol className="top-issues-list">
+                  {result.top_issues.map((issue, index) => (
+                    <li key={`${getIssueId(issue)}-${index}`}>
+                      <button onClick={() => {
+                        setSelectedFile(issue.file);
+                        setSeverityFilter("all");
+                        document.getElementById("issue-explorer")?.scrollIntoView({ behavior: "smooth" });
+                      }}>
+                        <span className={`severity-badge badge-${issue.severity}`}>{issue.severity}</span>
+                        <span className="top-issue-description"><strong>{issue.rule}</strong>{issue.message}
+                          <small>{issue.file} · Line {issue.line}</small>
+                        </span>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            )}
+
+            <section className="explorer-section" id="issue-explorer">
               <div className="explorer-header">
                 <div>
                   <p className="section-label">
@@ -555,7 +568,7 @@ function App() {
                               )}
 
                               {aiError && (
-                                <p className="ai-error">
+                                <p className="ai-error" role="alert">
                                   {aiError}
                                 </p>
                               )}

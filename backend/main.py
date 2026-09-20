@@ -1,7 +1,8 @@
 import os
-import shutil
 
 from fastapi import FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -12,7 +13,10 @@ from backend.models import (
 )
 from backend.diff_analyzer import analyze_diff
 
-from backend.ai_reviewer import generate_ai_review
+from backend.ai_reviewer import (
+    generate_ai_review, AI_UNAVAILABLE_MESSAGE, MAX_AI_REVIEWS,
+)
+from backend.repository import RepositoryError, cleanup_repository
 
 from backend.analyzer import (
     clone_repository,
@@ -40,6 +44,15 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_error(request, error):
+    # Do not echo rejected input, which could contain credentials or source code.
+    return JSONResponse(status_code=422, content={"detail": [
+        {"loc": item["loc"], "msg": item["msg"], "type": item["type"]}
+        for item in error.errors()
+    ]})
+
+
 @app.get("/")
 def home():
     return {"message": "AI Code Review Platform is running"}
@@ -53,6 +66,8 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
         repo_path, python_files = clone_repository(str(request.repo_url))
 
         analyzed_files = []
+        skipped_files = []
+        warnings = []
 
         for relative_path in python_files:
             full_path = os.path.join(repo_path, relative_path)
@@ -65,7 +80,7 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
                     issue["code_context"] = get_code_context(
                         full_path,
                         issue["line"],
-                    )
+                    )[:12000]
 
                 analyzed_files.append({
                     "file": relative_path,
@@ -75,8 +90,29 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
                     "issues": issues,
                 })
 
-            except (SyntaxError, UnicodeDecodeError):
+            except (SyntaxError, UnicodeDecodeError, ValueError, RecursionError):
+                skipped_files.append({"file": relative_path, "reason": "Invalid or unsupported Python source."})
                 continue
+
+        if not python_files:
+            warnings.append("No Python files found. This repository cannot currently be analyzed.")
+        elif skipped_files:
+            warnings.append("Some Python files could not be analyzed. The health score is unavailable for this partial analysis.")
+
+        if request.include_ai_review:
+            important_issues = sorted(
+                (issue for file in analyzed_files for issue in file["issues"]
+                 if issue["severity"] in {"high", "medium"}),
+                key=lambda issue: issue["score"], reverse=True,
+            )[:MAX_AI_REVIEWS]
+            for issue in important_issues:
+                try:
+                    issue["ai_review"] = generate_ai_review(issue)
+                except Exception:
+                    issue["ai_error"] = AI_UNAVAILABLE_MESSAGE
+                    warnings.append(AI_UNAVAILABLE_MESSAGE)
+                    # Stop further calls when the provider is unavailable/rate limited.
+                    break
 
         total_issues = 0
 
@@ -111,7 +147,7 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
 
         health_score = (
             calculate_health_score(all_issues)
-            if len(python_files) > 0
+            if analyzed_files and not skipped_files
             else None
         )
 
@@ -119,6 +155,8 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
             "repository": str(request.repo_url),
             "python_files_count": len(python_files),
             "analyzed_files_count": len(analyzed_files),
+            "skipped_files": skipped_files,
+            "warnings": warnings,
             "health_score": health_score,
             "summary": {
                 "total_issues": total_issues,
@@ -128,15 +166,17 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
             "files": analyzed_files,
         }
 
-    except Exception as e:
+    except RepositoryError as error:
+        raise HTTPException(status_code=error.status_code, detail=str(error)) from None
+    except Exception:
         raise HTTPException(
             status_code=500,
-            detail=f"Repository analysis failed: {str(e)}",
-        )
+            detail="Repository analysis failed. Please try again later.",
+        ) from None
 
     finally:
         if repo_path and os.path.exists(repo_path):
-            shutil.rmtree(repo_path, ignore_errors=True)
+            cleanup_repository(repo_path)
 
 
 @app.post("/ai-review")
@@ -157,11 +197,11 @@ def ai_review(request: AIReviewRequest):
             "ai_review": review,
         }
 
-    except Exception as e:
+    except Exception:
         raise HTTPException(
-            status_code=500,
-            detail=f"AI review failed: {str(e)}",
-        )
+            status_code=503,
+            detail=AI_UNAVAILABLE_MESSAGE,
+        ) from None
 
 
 @app.post("/analyze-diff")

@@ -114,6 +114,20 @@ The AI receives the issue metadata together with a small section of relevant sou
 
 AI reviews are generated only when explicitly requested by the user.
 
+Use the **Include AI review** checkbox to enhance up to three high/medium
+findings during repository analysis, or use an issue's **AI Review** button.
+Static analysis remains the default and works without an API key. Enrichment
+never changes rule results, severities, or health scores. If OpenAI is unavailable,
+the repository response still succeeds with static findings and a visible warning.
+The batch stops after the first failure; individual findings can be retried later.
+
+The backend uses the Responses API with a strict JSON schema and validates the
+result with Pydantic. Malformed, refused, or incomplete output is not displayed.
+Each SDK request has a 20-second timeout, no automatic retries, a 2,000-token
+output limit, and at most 12,000 characters of source context. Responses are
+requested with `store=False`. See the official
+[Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+
 ### Interactive Dashboard
 
 The React frontend provides:
@@ -123,6 +137,7 @@ The React frontend provides:
 - Python file count
 - Total detected issue count
 - High, medium, and low severity summaries
+- Top 10 issues ranked by severity, with shortcuts to the file explorer
 - File and issue explorer
 - Severity filtering
 - Source-code context display
@@ -213,7 +228,8 @@ ai-code-review-platform/
 │   ├── analyzer.py
 │   ├── diff_analyzer.py
 │   ├── main.py
-│   └── models.py
+│   ├── models.py
+│   └── repository.py
 │
 ├── frontend/
 │   ├── public/
@@ -221,6 +237,8 @@ ai-code-review-platform/
 │   │   ├── assets/
 │   │   ├── App.css
 │   │   ├── App.jsx
+│   │   ├── api.js
+│   │   ├── api.test.js
 │   │   ├── index.css
 │   │   └── main.jsx
 │   ├── .env.example
@@ -229,6 +247,9 @@ ai-code-review-platform/
 │
 ├── tests/
 │   ├── test_api.py
+│   ├── conftest.py
+│   ├── test_ai_reviewer.py
+│   ├── test_repository.py
 │   ├── test_diff_analyzer.py
 │   └── test_analyzer.py
 │
@@ -238,6 +259,7 @@ ai-code-review-platform/
 │   └── ai-review.png
 │
 ├── .gitignore
+├── .env.example
 ├── requirements.txt
 └── README.md
 ```
@@ -280,7 +302,8 @@ Example request:
 
 ```json
 {
-  "repo_url": "https://github.com/psf/requests"
+  "repo_url": "https://github.com/psf/requests",
+  "include_ai_review": false
 }
 ```
 
@@ -296,6 +319,25 @@ The endpoint:
 8. Calculates the repository health score
 9. Returns structured analysis results
 10. Removes the temporary repository
+
+Set `include_ai_review` to `true` to request AI enhancement of up to three
+high/medium findings. Enriched findings include `ai_review` in both `files`
+and `top_issues`; failures include a safe `ai_error` and a response-level warning.
+Responses also include `warnings` and `skipped_files`. No Python files, or
+unparseable Python files that make a review incomplete, produce a `null` health
+score rather than a misleading healthy score.
+
+Repository URLs must be `https://github.com/owner/repository` (an optional `.git`
+suffix or trailing slash is accepted). Credentials, query strings, fragments,
+custom ports, subpaths, other hosts, and non-HTTPS schemes are rejected.
+
+Expected errors: **422** invalid input, **413** repository/source size limit,
+**502** clone failure (including private/nonexistent repositories), **504** clone
+timeout. Git cannot reliably distinguish a nonexistent repository from a private
+one without authentication, so both receive the same safe explanation.
+Unexpected failures return **500** with a generic message; Git stderr, local
+paths, API keys, and stack traces are not sent to the frontend. `/ai-review`
+returns **503** when AI is unavailable; existing static results remain usable.
 
 Example response structure:
 
@@ -428,13 +470,19 @@ pip install -r requirements.txt
 
 ### 4. Configure the OpenAI API Key
 
-Create a `.env` file in the project root:
+Copy `.env.example` to `.env` in the project root and configure it locally.
+If `.env` already exists, edit it instead of overwriting it:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key
+OPENAI_MODEL=gpt-5.4
 ```
 
 The `.env` file should never be committed to Git.
+The key is optional for static analysis; it is required only when requesting AI
+review. `OPENAI_MODEL` is optional and defaults to the existing `gpt-5.4` model.
+Use a Responses API model that supports structured output and is available to
+your account. Keep the key on the backend; never put it in a `VITE_` variable.
 
 ### 5. Run the Backend
 
@@ -520,11 +568,19 @@ The automated tests cover:
 - Exclusion of unchanged findings and explicit issue-start-line scope
 - Per-file errors, request validation, and multi-file diff results
 - Repository API regression checks and compatibility with AI review (mocked)
+- GitHub URL validation, clone failures/timeouts, source limits, and cleanup
+- AI success, invalid output, missing key, and provider failure fallbacks
+
+Tests replace the OpenAI SDK with mocks and block real calls by default. Git
+cloning is mocked in automated tests, so the suite needs neither network access
+nor API credits. The frontend request-helper tests use Node's built-in test
+runner; no additional packages are required.
 
 Frontend validation:
 
 ```bash
 cd frontend
+npm test
 npm run lint
 npm run build
 ```
@@ -558,6 +614,28 @@ The platform follows several practices to reduce unnecessary exposure of source 
 - The entire repository is not sent to the AI service.
 - AI review requests contain only issue metadata and the relevant source-code context.
 
+Cloning is shallow, single-branch, and excludes tags. Git credential prompts,
+credential helpers, user/system configuration, hooks, and HTTP redirects are
+disabled for these clones; submodules are not fetched and LFS files are not
+downloaded. Python discovery excludes `.git` and symbolic links. Temporary
+clones are cleaned up on success and failure, including read-only Windows Git
+objects. An OS-level cleanup failure is logged without sensitive details.
+
+Limits are readable constants in `backend/repository.py`:
+
+| Limit | Value |
+| --- | --- |
+| Clone duration | 60 seconds |
+| Clone disk usage, including `.git` | 100 MiB |
+| Total repository files | 20,000 |
+| Python files | 500 |
+| Single Python file | 512 KiB |
+| Total Python source | 5 MiB |
+
+Disk/file limits are checked while Git is running and after it finishes; the
+clone process tree is stopped on timeout or excess size. Polling may briefly
+overshoot a limit. These are local-app safeguards, not OS-enforced quotas.
+
 When analyzing proprietary or sensitive source code, users should review their organization's policies before sending code snippets to external AI services.
 
 ---
@@ -574,6 +652,8 @@ Current limitations include:
 - The health score is not normalized by repository size
 - Static analysis cannot determine every runtime behavior
 - AI-generated fixes should be reviewed before being applied
+- Public deployment still needs authentication, rate limiting, concurrency
+  limits, and isolated workers with hard CPU/memory/disk quotas
 
 ---
 

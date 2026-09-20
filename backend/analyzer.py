@@ -1,8 +1,7 @@
 import ast
-import os
-import shutil
-import subprocess
-import tempfile
+
+# Preserve the existing import location for callers.
+from backend.repository import clone_repository
 
 
 SEVERITY_SCORES = {
@@ -10,33 +9,6 @@ SEVERITY_SCORES = {
     "medium": 2,
     "low": 1,
 }
-
-
-def clone_repository(repo_url: str) -> tuple[str, list[str]]:
-    temp_dir = tempfile.mkdtemp()
-
-    try:
-        subprocess.run(
-            ["git", "clone", "--depth", "1", repo_url, temp_dir],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-
-        python_files = []
-
-        for root, _, files in os.walk(temp_dir):
-            for file in files:
-                if file.endswith(".py"):
-                    full_path = os.path.join(root, file)
-                    relative_path = os.path.relpath(full_path, temp_dir)
-                    python_files.append(relative_path)
-
-        return temp_dir, python_files
-
-    except Exception:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-        raise
 
 
 def analyze_python_file(file_path: str) -> dict:
