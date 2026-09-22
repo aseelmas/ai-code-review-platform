@@ -18,6 +18,18 @@ For individual findings, developers can request an AI-powered review that uses t
 
 ## Demo
 
+### Live Demo
+
+Try the deployed application:
+
+https://ai-code-review-platform-hvhx.onrender.com
+
+The live demo includes repository analysis and code diff review. The backend is hosted on Render's free tier, so the first request after a period of inactivity may take a few seconds while the service starts.
+
+### API Documentation
+
+https://ai-code-review-platform-rpg9.onrender.com/docs
+
 ### Repository Analysis Dashboard
 
 ![Repository Analysis Dashboard](screenshots/dashboard.png)
