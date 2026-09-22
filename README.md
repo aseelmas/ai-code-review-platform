@@ -437,6 +437,9 @@ Example response structure:
 
 ## Installation
 
+For hosted deployment, see [DEPLOYMENT.md](DEPLOYMENT.md): Docker backend,
+static frontend, environment settings, and exact Render deployment steps.
+
 ### 1. Clone the Repository
 
 ```bash
@@ -465,7 +468,7 @@ source venv/bin/activate
 ### 3. Install Backend Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 ### 4. Configure the OpenAI API Key
@@ -585,6 +588,11 @@ npm run lint
 npm run build
 ```
 
+Production builds require `VITE_API_URL` to be set to the public HTTPS backend
+URL before running `npm run build` (PowerShell: `$env:VITE_API_URL = 'https://YOUR-BACKEND-HOST'`).
+Local `npm run dev` keeps its localhost default. Runtime-only backend installs
+use `requirements.txt`; tests require `requirements-dev.txt`.
+
 ---
 
 ## Example Analysis
@@ -652,8 +660,9 @@ Current limitations include:
 - The health score is not normalized by repository size
 - Static analysis cannot determine every runtime behavior
 - AI-generated fixes should be reviewed before being applied
-- Public deployment still needs authentication, rate limiting, concurrency
-  limits, and isolated workers with hard CPU/memory/disk quotas
+- Public deployment still needs authentication, rate limiting, and isolated
+  workers with hard CPU/memory/disk quotas; the production entry point adds a
+  basic server concurrency cap
 
 ---
 

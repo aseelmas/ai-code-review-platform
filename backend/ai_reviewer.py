@@ -1,12 +1,13 @@
 import json
 import os
 
-from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, ConfigDict, Field
 
+from backend.config import load_environment
 
-load_dotenv()
+
+load_environment()
 
 AI_UNAVAILABLE_MESSAGE = "AI review is temporarily unavailable. Static analysis results are still available."
 MAX_AI_REVIEWS = 3
